@@ -2,7 +2,7 @@
 #
 # cc-statusline — a status line for Claude Code
 #
-#   🤖 Opus 5 │ 🧠 51k/1M 5% │ ⏳ 5h 9% 4h32m │ 📅 7d 16% 2d
+#   🤖 Opus 5 │ 🧠 5% 51k/1M │ ⏳ 5h 9% 4h32m │ 📅 7d 16% 2d
 #
 # Reads Claude Code's session JSON on stdin, writes one line to stdout.
 # Compatible with bash 3.2 (macOS ships it), Linux, WSL and Git Bash.
@@ -25,14 +25,13 @@ CCSL_CONFIG="${CCSL_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/cc-statusline/conf
 : "${CCSL_WARN:=60}"        # percent at which a meter turns yellow
 : "${CCSL_CRIT_CTX:=75}"    # percent at which the context meter turns red
 : "${CCSL_CRIT_LIMIT:=80}"  # percent at which a rate-limit meter turns red
-: "${CCSL_LABEL:=default}"  # 5h ,7d label colors
 
 # ----------------------------------------------------------------------- input modes
 if [ "${1:-}" = "--version" ]; then echo "cc-statusline $CCSL_VERSION"; exit 0; fi 
 
 if [ "${1:-}" = "--demo" ]; then # demo mode: no stdin, just show a sample line
   __now=$(date +%s)
-  INPUT='{"model":{"id":"claude-opus-5","display_name":"Opus 5"},
+  INPUT='{"model":{"id":"claude-fable-5","display_name":"Mythos 5"},
   "context_window":{"context_window_size":1000000,"used_percentage":5,
     "current_usage":{"input_tokens":2,"output_tokens":393,
       "cache_creation_input_tokens":448,"cache_read_input_tokens":50552}},
@@ -111,24 +110,19 @@ NOW=${EPOCHSECONDS:-}
 [ -n "$NOW" ] || NOW=$(date +%s)
 
 # ----------------------------------------------------------------------- style
+# 16-colour SGR only: the terminal resolves each code against its own theme, so
+# there is no light/dark palette to pick. Hue travels safely between themes but
+# lightness does not, hence DIM for chrome rather than a fixed grey.
 if [ -n "${NO_COLOR:-}" ] || [ "$CCSL_COLOR" = never ]; then
-  RST=""; GRAY=""; RED=""; GREEN=""; YELLOW=""
-  BLUE=""; BBLUE=""; MAGENTA=""; CYAN=""; WHITE=""
+  RST=""; DIM=""; RED=""; GREEN=""; YELLOW=""
+  BLUE=""; BBLUE=""; MAGENTA=""; CYAN=""
 else
   RST=$'\033[0m'
-  RED=$'\033[31m';  GREEN=$'\033[32m';   YELLOW=$'\033[33m'
-  BLUE=$'\033[34m'; MAGENTA=$'\033[35m'; CYAN=$'\033[36m'
-  WHITE=$'\033[37m'; GRAY=$'\033[90m';   BBLUE=$'\033[94m'
+  DIM=$'\033[2m'                                            # chrome
+  RED=$'\033[31m';  GREEN=$'\033[32m';   YELLOW=$'\033[33m' # status
+  BLUE=$'\033[34m'; MAGENTA=$'\033[35m'; CYAN=$'\033[36m'   # identity
+  BBLUE=$'\033[94m'
 fi
-
-# Resolve CCSL_LABEL once. Anything unrecognised (including "default") leaves
-# the label uncoloured, i.e. the terminal's own foreground.
-case "$CCSL_LABEL" in
-  red) LBL=$RED ;;         green) LBL=$GREEN ;;     yellow) LBL=$YELLOW ;;
-  blue) LBL=$BLUE ;;       magenta) LBL=$MAGENTA ;; cyan) LBL=$CYAN ;;
-  white) LBL=$WHITE ;;     gray|grey) LBL=$GRAY ;;
-  *) LBL="" ;;
-esac
 
 case "$CCSL_ICONS" in
   emoji)   I_MODEL="🤖 "; I_CTX="🧠 "; I_5H="⏳ "; I_7D="📅 " ;;
@@ -140,16 +134,16 @@ esac
 # --------------------------------------------------------------------- helpers
 
 # A distinct hue per model family, so the model is identifiable at a glance.
-# Green is deliberately absent: it means "healthy" on the meters, and reusing
-# it for a model would make the two readings ambiguous.
+# The status axis (red/yellow/green) is off limits — a model name must not read
+# as a meter. Three hues remain, so mythos takes plain foreground, unknowns dim.
 model_color() {
   case "$MODEL_ID" in
     *opus*)   REPLY=$MAGENTA ;;
+    *fable*)  REPLY=$BBLUE   ;;
+    *mythos*) REPLY=$RST     ;;
     *sonnet*) REPLY=$CYAN    ;;
     *haiku*)  REPLY=$BLUE    ;;
-    *fable*)  REPLY=$BBLUE   ;;
-    *mythos*) REPLY=$YELLOW  ;;
-    *)        REPLY=$GRAY    ;;
+    *)        REPLY=$DIM     ;;
   esac
 }
 
@@ -193,7 +187,7 @@ countdown() {
 # -------------------------------------------------------------------- segments
 # Each appends to $LINE and returns 1 when its data isn't available.
 LINE=""
-add() { [ -n "$LINE" ] && LINE="$LINE$GRAY$CCSL_SEP$RST"; LINE="$LINE$1"; }
+add() { [ -n "$LINE" ] && LINE="$LINE$DIM$CCSL_SEP$RST"; LINE="$LINE$1"; }
 
 seg_model() {
   [ -n "$MODEL_NAME" ] || return 1
@@ -211,18 +205,20 @@ seg_context() {
   local c
   percentage_color "$pct" "$CCSL_CRIT_CTX"; c=$REPLY
   percentage_formatter "$pct"
-  add "$I_CTX$used/$size $c$REPLY$RST"
+  add "$I_CTX$c$REPLY$RST $used/$size"
 }
 
 # Shared renderer for both rate-limit windows. Three visual levels: the label
-# in CCSL_LABEL, the percentage in its status colour, the countdown in grey.
+# is static chrome so it dims, the percentage carries the status colour, and
+# the countdown keeps the plain foreground — it is data, like the context
+# segment's token counts.
 seg_limit() {
   local icon=$1 label=$2 pct=$3 reset=$4 out c
   [ -n "$pct" ] || return 1
   percentage_color "$pct" "$CCSL_CRIT_LIMIT"; c=$REPLY
   percentage_formatter "$pct"
-  out="$icon$LBL$label$RST $c$REPLY$RST"
-  if [ -n "$reset" ]; then countdown "$reset"; out="$out $GRAY$REPLY$RST"; fi
+  out="$icon$DIM$label$RST $c$REPLY$RST"
+  if [ -n "$reset" ]; then countdown "$reset"; out="$out $REPLY"; fi
   add "$out"
 }
 
