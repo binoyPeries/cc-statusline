@@ -9,7 +9,7 @@
 
 set -u
 
-CCSL_VERSION="1.0.0"
+CCSL_VERSION="0.1.0"
 
 # ---------------------------------------------------------------------- config
 # Override any of these via the environment, or in the config file below.
