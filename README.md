@@ -89,7 +89,9 @@ Preview any combination without launching Claude Code: `./statusline.sh --demo`.
 
 ## Contributing
 
-Directory, git branch, session cost and the rest were left out because they didn't make my top four, not because they're hard to add. `CCSL_SEGMENTS` reorders what's already there, and a new segment is a small function alongside the existing ones. Issues and pull requests welcome.
+Directory, git branch, session cost and the rest were left out because they didn't make my top four, not because they're hard to add. `CCSL_SEGMENTS` reorders what's already there, and a new segment is a small function alongside the existing ones.
+
+`./statusline.sh --demo` feeds the script a sample payload and prints the line, so you can iterate on a segment without launching Claude Code. Issues and pull requests welcome.
 
 ## License
 
