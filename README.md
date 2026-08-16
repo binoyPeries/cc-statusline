@@ -87,6 +87,11 @@ Preview any combination without launching Claude Code: `./statusline.sh --demo`.
 | Garbled characters | Your font lacks the glyphs: `CCSL_ICONS=unicode` or `none` |
 | Colors look off | They come from your terminal theme; `CCSL_COLOR=never` turns them off |
 
+## Future work
+
+- **Versioned releases and `--update`.** The script knows its own version (`./statusline.sh --version`), but there's nothing on the other end of that yet — no tags, no releases, so updating means re-running the `curl` from [Install](#install) and hoping. The plan is tagged releases plus a `--check` / `--update` pair that fetches the latest one and replaces the script in place, so an update is one command and you can tell whether you need it.
+- **Windows without Git Bash.** A PowerShell port, so `statusLine` works against the shell Claude Code already falls back to instead of silently rendering nothing.
+
 ## Contributing
 
 Directory, git branch, session cost and the rest were left out because they didn't make my top four, not because they're hard to add. `CCSL_SEGMENTS` reorders what's already there, and a new segment is a small function alongside the existing ones.
