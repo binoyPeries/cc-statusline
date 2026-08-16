@@ -34,7 +34,7 @@ if [ "${1:-}" = "--demo" ]; then # demo mode: no stdin, just show a sample line
   __now=$(date +%s)
   INPUT='{"model":{"id":"claude-fable-5","display_name":"Mythos 5"},
   "effort":{"level":"high"},
-  "context_window":{"context_window_size":1000000,"used_percentage":5,
+  "context_window":{"context_window_size":1000000,"used_percentage":5.1767338,
     "current_usage":{"input_tokens":2,"output_tokens":393,
       "cache_creation_input_tokens":448,"cache_read_input_tokens":50552}},
   "rate_limits":{"five_hour":{"used_percentage":9,"resets_at":'$((__now+16320))'},
@@ -168,6 +168,20 @@ effort_label() {
   esac
 }
 
+# Percentages are floats, but the status line is too small to show decimals. 
+# Round to the nearest integer, with 0.5 rounding up.
+round_pct() {
+  local p=${1:-0} int frac
+  case $p in ''|*[!0-9.]*|*.*.*) REPLY=0; return ;; esac  # null, "abc", 1.2.3
+  int=${p%%.*}; frac=${p#*.}
+  # Nothing to strip in a dotless "5", so ${p#*.} hands back the 5 — which would
+  # then read as the first decimal digit and round it up to 6.
+  [ "$frac" = "$p" ] && frac=""
+  case ${int:-0} in '') int=0 ;; esac                     # ".5" has no int part
+  case ${frac:0:1} in [5-9]) int=$(( int + 1 )) ;; esac
+  REPLY=$int
+}
+
 # $1 = percentage, $2 = the red threshold (context and rate limits differ).
 # Green below CCSL_WARN, yellow from there, red from $2 up.
 percentage_color() {
@@ -189,8 +203,8 @@ ctx_size_formatter() {
   fi
 }
 
-# Format a percentage with no decimal places, and append a percent sign.
-percentage_formatter() { local p=${1:-0}; p=${p%.0}; REPLY="$p%"; }
+# Append a percent sign. Callers round with round_pct() first.
+percentage_formatter() { REPLY="${1:-0}%"; }
 
 # epoch seconds -> coarsest useful unit: "2d" over a day, else "5h40m", else "40m".
 # Days floor rather than round, so the countdown never overstates what's left.
@@ -233,6 +247,7 @@ seg_context() {
   ctx_size_formatter "$CTX_SIZE"; size=$REPLY
   pct=$CTX_PCT
   if [ -z "$pct" ]; then pct=$(( CTX_USED * 100 / ${CTX_SIZE%%.*} )); fi
+  round_pct "$pct"; pct=$REPLY
   local c
   percentage_color "$pct" "$CCSL_CRIT_CTX"; c=$REPLY
   percentage_formatter "$pct"
@@ -246,6 +261,7 @@ seg_context() {
 seg_limit() {
   local icon=$1 label=$2 pct=$3 reset=$4 out c
   [ -n "$pct" ] || return 1
+  round_pct "$pct"; pct=$REPLY
   percentage_color "$pct" "$CCSL_CRIT_LIMIT"; c=$REPLY
   percentage_formatter "$pct"
   out="$icon$DIM$label$RST $c$REPLY$RST"
