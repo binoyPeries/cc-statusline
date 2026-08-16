@@ -2,7 +2,7 @@
 #
 # cc-statusline — a status line for Claude Code
 #
-#   🤖 Opus 5 │ 🧠 5% 51k/1M │ ⏳ 5h 9% 4h32m │ 📅 7d 16% 2d
+#   🤖 Opus 5 (high) │ 🧠 5% 51k/1M │ ⏳ 5h 9% 4h32m │ 📅 7d 16% 2d
 #
 # Reads Claude Code's session JSON on stdin, writes one line to stdout.
 # Compatible with bash 3.2 (macOS ships it), Linux, WSL and Git Bash.
@@ -19,6 +19,7 @@ CCSL_CONFIG="${CCSL_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/cc-statusline/conf
 [ -r "$CCSL_CONFIG" ] && . "$CCSL_CONFIG"
 
 : "${CCSL_SEGMENTS:=model context five_hour seven_day}"
+: "${CCSL_EFFORT:=auto}"    # auto | never — effort rides along with the model
 : "${CCSL_ICONS:=emoji}"    # emoji | nerd | unicode | none
 : "${CCSL_COLOR:=auto}"     # auto | never
 : "${CCSL_SEP:= │ }"
@@ -32,6 +33,7 @@ if [ "${1:-}" = "--version" ]; then echo "cc-statusline $CCSL_VERSION"; exit 0; 
 if [ "${1:-}" = "--demo" ]; then # demo mode: no stdin, just show a sample line
   __now=$(date +%s)
   INPUT='{"model":{"id":"claude-fable-5","display_name":"Mythos 5"},
+  "effort":{"level":"high"},
   "context_window":{"context_window_size":1000000,"used_percentage":5,
     "current_usage":{"input_tokens":2,"output_tokens":393,
       "cache_creation_input_tokens":448,"cache_read_input_tokens":50552}},
@@ -54,6 +56,7 @@ parse() {
       (.context_window.current_usage // {}) as $u |
       "MODEL_ID=\(.model.id | n)",
       "MODEL_NAME=\(.model.display_name | n)",
+      "EFFORT=\(.effort.level | n)",
       "CTX_USED=\((($u.input_tokens//0)+($u.output_tokens//0)
                   +($u.cache_creation_input_tokens//0)+($u.cache_read_input_tokens//0)) | n)",
       "CTX_SIZE=\(.context_window.context_window_size | n)",
@@ -66,9 +69,11 @@ parse() {
   fi
 
   # No jq on the box — parse with parameter expansion only.
-  local flat obj cw cu h5 d7 tot v k
+  local flat obj cw cu h5 d7 ef tot v k
   flat=${INPUT//$'\n'/}
-  scope() { REPLY=${flat#*\"$1\"*\{}; }
+  # Empty rather than the whole document when the object is absent, so the
+  # getters below can't wander off into a neighbouring object's keys.
+  scope() { REPLY=${flat#*\"$1\"*\{}; case $REPLY in "$flat") REPLY="" ;; esac; }
   num() { # $1 haystack, $2 key
     local s=${1#*\"$2\"} v
     case $s in "$1") REPLY=""; return;; esac
@@ -80,10 +85,16 @@ parse() {
     case $s in "$flat") REPLY=""; return;; esac
     s=${s#*\"}; REPLY=${s%%\"*}
   }
+  sstr() { # $1 haystack, $2 key — str(), scoped to one object
+    local s=${1#*\"$2\"}
+    case $s in "$1") REPLY=""; return;; esac
+    s=${s#*\"}; REPLY=${s%%\"*}
+  }
   scope context_window; cw=$REPLY
   scope current_usage;  cu=$REPLY
   scope five_hour;      h5=$REPLY
   scope seven_day;      d7=$REPLY
+  scope effort;         ef=$REPLY
   tot=0
   for k in input_tokens output_tokens cache_creation_input_tokens cache_read_input_tokens; do
     num "$cu" "$k"; v=${REPLY%%.*}; tot=$(( tot + ${v:-0} ))
@@ -92,6 +103,7 @@ parse() {
   emit() { REPLY=${2//\'/\'\\\'\'}; echo "$1='$REPLY'"; }
   str id;           emit MODEL_ID "$REPLY"
   str display_name; emit MODEL_NAME "$REPLY"
+  sstr "$ef" level; emit EFFORT "$REPLY"
   emit CTX_USED "$tot"
   num "$cw" context_window_size; emit CTX_SIZE "$REPLY"
   num "$cw" used_percentage;     emit CTX_PCT "$REPLY"
@@ -101,7 +113,7 @@ parse() {
   num "$d7" resets_at;           emit D7_RESET "$REPLY"
 }
 
-MODEL_ID=""; MODEL_NAME=""; CTX_USED=0; CTX_SIZE=""; CTX_PCT=""
+MODEL_ID=""; MODEL_NAME=""; EFFORT=""; CTX_USED=0; CTX_SIZE=""; CTX_PCT=""
 H5_PCT=""; H5_RESET=""; D7_PCT=""; D7_RESET=""; REPLY=""
 eval "$(parse)"
 
@@ -147,6 +159,15 @@ model_color() {
   esac
 }
 
+# Levels are low | medium | high | xhigh | max. Only "medium" is long enough to
+# be worth shortening; anything unrecognised passes through as sent.
+effort_label() {
+  case "$1" in
+    medium) REPLY=med ;;
+    *)      REPLY=$1  ;;
+  esac
+}
+
 # $1 = percentage, $2 = the red threshold (context and rate limits differ).
 # Green below CCSL_WARN, yellow from there, red from $2 up.
 percentage_color() {
@@ -189,10 +210,20 @@ countdown() {
 LINE=""
 add() { [ -n "$LINE" ] && LINE="$LINE$DIM$CCSL_SEP$RST"; LINE="$LINE$1"; }
 
+# Effort is an attribute of the model, not a fourth meter, so it rides inside
+# the model segment: parenthesised because that reads as a qualifier even at
+# dim contrast, and dim because it must not compete with the model name.
+# The field is absent for models without an effort parameter.
 seg_model() {
   [ -n "$MODEL_NAME" ] || return 1
+  local out
   model_color
-  add "$I_MODEL$REPLY$MODEL_NAME$RST"
+  out="$I_MODEL$REPLY$MODEL_NAME$RST"
+  if [ -n "$EFFORT" ] && [ "$CCSL_EFFORT" != never ]; then
+    effort_label "$EFFORT"
+    out="$out $DIM($REPLY)$RST"
+  fi
+  add "$out"
 }
 
 seg_context() {
