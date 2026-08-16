@@ -27,10 +27,12 @@ This is one shell script on the `statusLine` hook Claude Code already gives you.
 
 ```bash
 mkdir -p ~/.claude
-curl -fsSL https://raw.githubusercontent.com/binoyPeries/cc-statusline/main/statusline.sh \
+curl -fsSL https://github.com/binoyPeries/cc-statusline/releases/latest/download/statusline.sh \
   -o ~/.claude/statusline.sh
 chmod +x ~/.claude/statusline.sh
 ```
+
+That pulls the latest release. To pin a version, swap `latest/download` for `download/v0.1.0`; to track the tip of `main`, use `https://raw.githubusercontent.com/binoyPeries/cc-statusline/main/statusline.sh` instead.
 
 **2. Point `settings.json` at it** — `~/.claude/settings.json` for every project, or `.claude/settings.json` inside one repo for just that repo:
 
@@ -46,6 +48,18 @@ chmod +x ~/.claude/statusline.sh
 Start a new session and it's there.
 
 > **Windows needs Git Bash** ([Git for Windows](https://git-scm.com/download/win)) or WSL. Without one, Claude Code falls back to PowerShell, which can't run a Bash script — you get an empty status line and no error. *A PowerShell version is coming.* Use forward slashes in the path (`C:/Users/you/...`); Git Bash treats backslashes as escapes and fails silently.
+
+## Update
+
+Same command as step 1 — it overwrites the script in place, and `settings.json` doesn't change:
+
+```bash
+curl -fsSL https://github.com/binoyPeries/cc-statusline/releases/latest/download/statusline.sh \
+  -o ~/.claude/statusline.sh
+chmod +x ~/.claude/statusline.sh
+```
+
+`./statusline.sh --version` tells you what you're on; the [latest release](https://github.com/binoyPeries/cc-statusline/releases/latest) tells you whether that's current. Changes take effect on the next session.
 
 ## Configuration
 
@@ -89,7 +103,7 @@ Preview any combination without launching Claude Code: `./statusline.sh --demo`.
 
 ## Future work
 
-- **Versioned releases and `--update`.** The script knows its own version (`./statusline.sh --version`), but there's nothing on the other end of that yet — no tags, no releases, so updating means re-running the `curl` from [Install](#install) and hoping. The plan is tagged releases plus a `--check` / `--update` pair that fetches the latest one and replaces the script in place, so an update is one command and you can tell whether you need it.
+- **`--check` and `--update`.** Releases are tagged now, but noticing a new one and installing it is still on you — re-run the `curl` and compare `--version` by eye. The plan is a `--check` / `--update` pair: one asks whether a newer release exists, the other fetches it and replaces the script in place, so updating is a command rather than a habit.
 - **Windows without Git Bash.** A PowerShell port, so `statusLine` works against the shell Claude Code already falls back to instead of silently rendering nothing.
 
 ## Contributing
