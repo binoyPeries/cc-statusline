@@ -47,7 +47,14 @@ That pulls the latest release. To pin a version, swap `latest/download` for `dow
 
 Start a new session and it's there.
 
-> **Windows needs Git Bash** ([Git for Windows](https://git-scm.com/download/win)) or WSL. Without one, Claude Code falls back to PowerShell, which can't run a Bash script — you get an empty status line and no error. *A PowerShell version is coming.* Use forward slashes in the path (`C:/Users/you/...`); Git Bash treats backslashes as escapes and fails silently.
+### Windows
+
+Same two steps, run from Git Bash. The one requirement is [Git for Windows](https://git-scm.com/download/win) or WSL:
+
+- **With either installed**, the status line shows up whichever terminal you started Claude Code in - PowerShell, cmd and Windows Terminal all work.
+- **With neither**, Claude Code falls back to PowerShell, which can't run a Bash script, so you get an empty status line and no error. *A PowerShell version is coming.*
+
+Use forward slashes in the `settings.json` path (`C:/Users/you/...`) — Git Bash reads backslashes as escapes and fails silently.
 
 ## Update
 
@@ -96,7 +103,7 @@ Preview any combination without launching Claude Code: `./statusline.sh --demo`.
 | Problem | Fix |
 |---|---|
 | Nothing shows up | Check `chmod +x` and the path in `settings.json`, then try `./statusline.sh --demo` |
-| Nothing on Windows | Git Bash isn't installed, so PowerShell is trying to run a Bash script — install [Git for Windows](https://git-scm.com/download/win) and restart |
+| Nothing on Windows | No Git Bash, so a Bash script has nothing to run it — install [Git for Windows](https://git-scm.com/download/win) and restart |
 | No rate limits | API-key auth, or before the first response — check `/usage` for your plan |
 | Garbled characters | Your font lacks the glyphs: `CCSL_ICONS=unicode` or `none` |
 | Colors look off | They come from your terminal theme; `CCSL_COLOR=never` turns them off |
